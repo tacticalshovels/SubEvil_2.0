@@ -1,7 +1,7 @@
 import requests
 import json
-from Lib.Configer import *
 from Lib.userAgent import useragent
+from Lib.Configer import *
 """
 ███████╗██╗   ██╗██████╗ ███████╗██╗   ██╗██╗██╗     
 ██╔════╝██║   ██║██╔══██╗██╔════╝██║   ██║██║██║     
@@ -16,24 +16,14 @@ from Lib.userAgent import useragent
 #           Github        : @Evil-Twins-X
 #======================================================
 """
-
-def censys(Domain,useragent=useragent()):
+def certspotter(Domains,useragent=useragent()):
+    headers = {"Authorization": f"Bearer {certspotter_api_key}",'User-Agent':useragent}
+    response = requests.get(f"https://api.certspotter.com/v1/issuances?domain={Domains}&expand=dns_names",
+                            headers=headers, stream=True ,verify=True,timeout=15)
     subdomains = []
-    page = pages = 1
-    while page <= pages:
-        headers = {"Content-Type": "application/json", "Accept": "application/json","User-agent":useragent}
-        auth = (censys_api_id, censys_api_secret)
-        data = {"query": Domain, "page": page, "fields": ["parsed.names"]}
-        response = requests.post("https://www.censys.io/api/v1/search/certificates",
-                                 headers=headers, json=data, auth=auth, stream=True,timeout=15)
-        data = json.loads(response.text)
-        pages = data["metadata"]["pages"]
-        for res in data["results"]:
-            pn = res["parsed.names"]
-            for sub in pn:
-                sub = sub.replace("http://", "")
-                sub = sub.replace("https://", "")
-                if "." + Domain in sub and not sub.startswith("*") and not subdomains.__contains__(sub):
-                    subdomains.append(sub)
-        page = page + 1
+    data = json.loads(response.text)
+    for dns_names in data:
+        for dns_name in dns_names["dns_names"]:
+            if not dns_name.startswith('*') and not subdomains.__contains__(dns_name):
+                subdomains.append(dns_name)
     return subdomains

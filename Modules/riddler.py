@@ -17,23 +17,14 @@ from Lib.userAgent import useragent
 #======================================================
 """
 
-def censys(Domain,useragent=useragent()):
+
+def riddler(Domains,useragent=useragent()):
     subdomains = []
-    page = pages = 1
-    while page <= pages:
-        headers = {"Content-Type": "application/json", "Accept": "application/json","User-agent":useragent}
-        auth = (censys_api_id, censys_api_secret)
-        data = {"query": Domain, "page": page, "fields": ["parsed.names"]}
-        response = requests.post("https://www.censys.io/api/v1/search/certificates",
-                                 headers=headers, json=data, auth=auth, stream=True,timeout=15)
-        data = json.loads(response.text)
-        pages = data["metadata"]["pages"]
-        for res in data["results"]:
-            pn = res["parsed.names"]
-            for sub in pn:
-                sub = sub.replace("http://", "")
-                sub = sub.replace("https://", "")
-                if "." + Domain in sub and not sub.startswith("*") and not subdomains.__contains__(sub):
-                    subdomains.append(sub)
-        page = page + 1
+    response = requests.get(f"https://riddler.io/search/exportcsv?q=pld:{Domains}", stream=True,verify=True,headers={"User-Agent":useragent},timeout=15)
+    data = csv.reader(line.decode('utf-8') for line in response.iter_lines())
+    next(data)
+    next(data)
+    for row in data:
+        if not subdomains.__contains__(row[4]):
+            subdomains.append(row[4])
     return subdomains

@@ -17,23 +17,18 @@ from Lib.userAgent import useragent
 #======================================================
 """
 
-def censys(Domain,useragent=useragent()):
+
+def binaryedge(Domains,useragent=useragent()):
     subdomains = []
     page = pages = 1
     while page <= pages:
-        headers = {"Content-Type": "application/json", "Accept": "application/json","User-agent":useragent}
-        auth = (censys_api_id, censys_api_secret)
-        data = {"query": Domain, "page": page, "fields": ["parsed.names"]}
-        response = requests.post("https://www.censys.io/api/v1/search/certificates",
-                                 headers=headers, json=data, auth=auth, stream=True,timeout=15)
+        headers = {"X-Key": binaryedge_api_key,"User-Agent":useragent}
+        response = requests.get(f"https://api.binaryedge.io/v2/query/domains/subdomain/{Domains}?page={page}",
+                                headers=headers, stream=True,verify=True,timeout=15)
         data = json.loads(response.text)
-        pages = data["metadata"]["pages"]
-        for res in data["results"]:
-            pn = res["parsed.names"]
-            for sub in pn:
-                sub = sub.replace("http://", "")
-                sub = sub.replace("https://", "")
-                if "." + Domain in sub and not sub.startswith("*") and not subdomains.__contains__(sub):
-                    subdomains.append(sub)
+        pages = data["pagesize"]
+        for sub in data["events"]:
+            if not subdomains.__contains__(sub):
+                subdomains.append(sub)
         page = page + 1
     return subdomains

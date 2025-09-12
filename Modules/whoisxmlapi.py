@@ -17,23 +17,15 @@ from Lib.userAgent import useragent
 #======================================================
 """
 
-def censys(Domain,useragent=useragent()):
+
+def whoisxmlapi(Domains,useragent=useragent()):
     subdomains = []
-    page = pages = 1
-    while page <= pages:
-        headers = {"Content-Type": "application/json", "Accept": "application/json","User-agent":useragent}
-        auth = (censys_api_id, censys_api_secret)
-        data = {"query": Domain, "page": page, "fields": ["parsed.names"]}
-        response = requests.post("https://www.censys.io/api/v1/search/certificates",
-                                 headers=headers, json=data, auth=auth, stream=True,timeout=15)
-        data = json.loads(response.text)
-        pages = data["metadata"]["pages"]
-        for res in data["results"]:
-            pn = res["parsed.names"]
-            for sub in pn:
-                sub = sub.replace("http://", "")
-                sub = sub.replace("https://", "")
-                if "." + Domain in sub and not sub.startswith("*") and not subdomains.__contains__(sub):
-                    subdomains.append(sub)
-        page = page + 1
+    response = requests.get(
+        f"https://subdomains.whoisxmlapi.com/api/v1?apiKey={whoisxmlapi_api_key}&domainName={Domains}", 
+        stream=True,verify=True,headers={"User-Agent":useragent},timeout=15)
+    data = json.loads(response.text)
+    for res in data["result"]["records"]:
+        sub = res["domain"]
+        if not subdomains.__contains__(sub):
+            subdomains.append(sub)
     return subdomains
