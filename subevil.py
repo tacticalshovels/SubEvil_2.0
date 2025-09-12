@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-SubEvil — stdlib-only runner
-- Domain is positional arg: python subevil.py example.com
-- Probing always performed; only ALIVE subdomains are output
-- Default stdout: TEXT with "host ip" per line (no banners)
-- Formats: text (default), json, csv, ndjson
-- --details adds status code + page title (for text/json/csv/ndjson)
-- --with-sources adds source attribution (json/csv/ndjson)
-- --resolve / --no-resolve to include/skip DNS resolution (default: resolve)
-- --timeout controls probe timeout (default: 4s)
-- --quiet suppresses logs even in text mode
-"""
-
 import sys
 import os
 import argparse
@@ -23,8 +10,6 @@ from http.client import HTTPConnection, HTTPSConnection
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
-
-# ------- Your internal modules (kept as-is) -------
 from Modules.alienvault import alienvault
 from Modules.anubis import anubis
 from Modules.binaryedge import binaryedge
@@ -50,7 +35,7 @@ from Modules.virustotal import virustotal
 from Modules.whoisxmlapi import whoisxmlapi
 from Modules.recondev import recondev
 
-VERSIONS = "V2.5.0"
+VERSIONS = "V2.0.0"
 
 # --------- Utilities ---------
 def clear_screen() -> None:
