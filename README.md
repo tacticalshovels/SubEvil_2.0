@@ -1,6 +1,6 @@
-# SubEvil
+# SubEvil 2.0
 
-**SubEvil** is a fast, stdlib-only subdomain reconnaissance tool.  
+**SubEvil 2.0** is a fast, stdlib-only subdomain reconnaissance tool.  
 It enumerates subdomains from multiple passive sources, probes them to check if they’re alive, and optionally resolves their IPs.
 
 ⚡ Designed for penetration testers, bug bounty hunters, and security researchers.
