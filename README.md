@@ -52,7 +52,6 @@ It enumerates subdomains from multiple passive sources, probes them to check if 
 
 ## 🚀 Usage
 
-```bash
 # Basic: print alive subdomains + IPs
 python subevil.py example.com
 
