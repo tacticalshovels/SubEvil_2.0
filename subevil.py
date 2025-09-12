@@ -3,10 +3,11 @@
 SubEvil — stdlib-only runner
 - Domain is positional arg: python subevil.py example.com
 - Probing always performed; only ALIVE subdomains are output
-- Default stdout: TEXT with just hostnames, one per line (no banners)
+- Default stdout: TEXT with "host ip" per line (no banners)
 - Formats: text (default), json, csv, ndjson
 - --details adds status code + page title (for text/json/csv/ndjson)
 - --with-sources adds source attribution (json/csv/ndjson)
+- --resolve / --no-resolve to include/skip DNS resolution (default: resolve)
 - --timeout controls probe timeout (default: 4s)
 - --quiet suppresses logs even in text mode
 """
@@ -49,7 +50,7 @@ from Modules.virustotal import virustotal
 from Modules.whoisxmlapi import whoisxmlapi
 from Modules.recondev import recondev
 
-VERSIONS = "V2.4.0"
+VERSIONS = "V2.5.0"
 
 # --------- Utilities ---------
 def clear_screen() -> None:
@@ -153,6 +154,19 @@ def probe_host(host, timeout=4, want_details=False):
             continue
     return None
 
+# --- DNS resolution (single IP per host) ---
+def resolve_ip(host):
+    """Return a single IP (prefer IPv4, fallback IPv6)."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+        ipv4 = next((i[4][0] for i in infos if i[0] == socket.AF_INET), None)
+        if ipv4:
+            return ipv4
+        ipv6 = next((i[4][0] for i in infos if i[0] == socket.AF_INET6), None)
+        return ipv6
+    except Exception:
+        return None
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Subdomain recon (stdlib-only).")
     parser.add_argument('domain', help="Root domain (e.g., example.com)")
@@ -165,35 +179,49 @@ def parse_args():
                         help="Include source attribution (json/csv/ndjson only)")
     parser.add_argument('--details', action='store_true',
                         help="Include status code and page title in results")
+    parser.add_argument('--resolve', dest='resolve', action='store_true', default=True,
+                        help="Resolve IP addresses for each alive subdomain (default: on)")
+    parser.add_argument('--no-resolve', dest='resolve', action='store_false',
+                        help="Disable IP resolution")
     parser.add_argument('--quiet','-q', action='store_true',
                         help="Suppress logs/banners even in text mode")
     parser.add_argument('--version','-v', action='store_true', help="Show version and exit")
     return parser.parse_args()
 
-def emit_output(stream, fmt, results, sources_map, with_sources, quiet):
+def emit_output(stream, fmt, results, sources_map, with_sources, quiet, resolve_enabled):
     if fmt == 'text':
-        # If quiet OR default-stdout behavior, print only hostnames per line.
+        # Quiet or default stdout prints simplified lines
         if quiet:
             for r in results:
-                stream.write(r["host"] + "\n")
-        else:
-            # Human-friendly text with optional details
-            for r in results:
-                if "status" in r:
-                    line = f"{r['host']} [{r['status']}] {r.get('title','')}"
+                if resolve_enabled and r.get("ip"):
+                    stream.write(f"{r['host']} {r['ip']}\n")
                 else:
-                    line = r["host"]
-                stream.write(line + "\n")
+                    stream.write(r["host"] + "\n")
+        else:
+            # Human-friendly text with optional details + IP
+            for r in results:
+                parts = [r["host"]]
+                if "status" in r:
+                    parts.append(f"[{r['status']}]")
+                if r.get("title"):
+                    parts.append(r["title"])
+                if resolve_enabled and r.get("ip"):
+                    parts.append(f"({r['ip']})")
+                stream.write(" ".join(parts).rstrip() + "\n")
     elif fmt == 'json':
         payload = []
         for r in results:
             entry = dict(r)
+            if not resolve_enabled:
+                entry.pop("ip", None)
             if with_sources:
                 entry["sources"] = sorted(sources_map.get(r["host"], ()))
             payload.append(entry)
         json.dump(payload, stream, indent=2)
     elif fmt == 'csv':
         headers = ["host"]
+        if resolve_enabled:
+            headers.append("ip")
         if results and "status" in results[0]:
             headers += ["status","title"]
         if with_sources:
@@ -202,6 +230,8 @@ def emit_output(stream, fmt, results, sources_map, with_sources, quiet):
         writer.writerow(headers)
         for r in results:
             row = [r["host"]]
+            if resolve_enabled:
+                row.append(r.get("ip",""))
             if "status" in r:
                 row += [r["status"], r.get("title","")]
             if with_sources:
@@ -210,19 +240,21 @@ def emit_output(stream, fmt, results, sources_map, with_sources, quiet):
     elif fmt == 'ndjson':
         for r in results:
             obj = dict(r)
+            if not resolve_enabled:
+                obj.pop("ip", None)
             if with_sources:
                 obj["sources"] = sorted(sources_map.get(r["host"], ()))
             stream.write(json.dumps(obj, separators=(",", ":")) + "\n")
 
-def write_output(path, fmt, results, sources_map, with_sources, human_mode, quiet_effective):
+def write_output(path, fmt, results, sources_map, with_sources, human_mode, quiet_effective, resolve_enabled):
     if path:
         newline = "" if fmt == "csv" else None
         with open(path, "w", encoding="utf-8", newline=newline) as f:
-            emit_output(f, fmt, results, sources_map, with_sources, quiet_effective)
+            emit_output(f, fmt, results, sources_map, with_sources, quiet_effective, resolve_enabled)
         if human_mode:
             print(f"Wrote {len(results)} alive hosts to {path} ({fmt})")
     else:
-        emit_output(sys.stdout, fmt, results, sources_map, with_sources, quiet_effective)
+        emit_output(sys.stdout, fmt, results, sources_map, with_sources, quiet_effective, resolve_enabled)
         sys.stdout.flush()
 
 def main():
@@ -231,13 +263,11 @@ def main():
         print(f"SubEvil {VERSIONS}")
         return 0
 
-    # Auto-quiet rule: if text format to stdout (no --output), and no details/sources requested,
-    # default to quiet printing (just hostnames). Users can override with --quiet or add --details.
+    # Auto-quiet: if text to stdout (no --output) and no details/sources, print minimal lines
     auto_quiet_stdout = (args.format == "text" and args.output is None and not args.details and not args.with_sources)
     quiet_effective = args.quiet or auto_quiet_stdout
 
     machine_mode = args.format in ("json", "csv", "ndjson")
-    # Human mode = text format AND not quiet_effective (so banners/progress appear)
     human_mode = (args.format == "text") and not quiet_effective
 
     if human_mode:
@@ -276,12 +306,29 @@ def main():
             if r:
                 alive.append(r)
 
+    # --- Resolve IPs if enabled ---
+    if args.resolve and alive:
+        if human_mode:
+            print("Resolving IPs…")
+        host_list = [r["host"] for r in alive]
+        ip_map = {}
+        with ThreadPoolExecutor(max_workers=args.max_workers) as ex:
+            futures = {ex.submit(resolve_ip, h): h for h in host_list}
+            for fut in as_completed(futures):
+                h = futures[fut]
+                try:
+                    ip_map[h] = fut.result()
+                except Exception:
+                    ip_map[h] = None
+        # attach IPs
+        for r in alive:
+            r["ip"] = ip_map.get(r["host"])
+
     alive_sorted = sorted(alive, key=lambda x: x["host"])
     if human_mode:
         print(f"Alive subdomains [{len(alive_sorted)}]")
 
-    # Suppress banners for machine formats always; for text, depends on quiet_effective
-    write_output(args.output, args.format, alive_sorted, sources_map, args.with_sources, human_mode, quiet_effective)
+    write_output(args.output, args.format, alive_sorted, sources_map, args.with_sources, human_mode, quiet_effective, args.resolve)
     return 0
 
 if __name__ == "__main__":
