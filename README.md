@@ -15,7 +15,7 @@ It enumerates subdomains from multiple passive sources, probes them to check if 
 
 ## ✨ Features
 
-- 🔍 **Subdomain enumeration** from 20+ passive sources (AlienVault, Censys, Shodan, VirusTotal, etc.)
+- 🔍 **Subdomain enumeration** from 10+ passive sources (AlienVault, Censys, Shodan, VirusTotal, etc.)
 - 🌐 **Automatic probing** (HTTP + HTTPS) — only **alive** subdomains are output
 - 🖥️ **IP resolution** (enabled by default)  
   - Prints IPs below each subdomain in text mode  
